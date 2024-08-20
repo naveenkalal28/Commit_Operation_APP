@@ -1,0 +1,140 @@
+BROKER SCHEMA Exception_handler
+PATH DBloggingSharedLib;
+CREATE COMPUTE MODULE Exception_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+
+
+		DECLARE encodeRef ,ccidRef INTEGER;
+		--SET Environment.encodeRef = InputRoot.Properties.Encoding;
+		--SET Environment.ccidRef = InputRoot.Properties.CodedCharSetId;
+		SET Environment.Variables.Values.Dbloggingflag = COALESCE(Environment.Variables.Values.Dbloggingflag,InputRoot.HTTPInputHeader.Dbloggingflag);
+        SET Environment.Variables.Values.Consolelogflag = COALESCE(Environment.Variables.Values.Consolelogflag,InputRoot.HTTPInputHeader.Consolelogflag);
+        
+		SET encodeRef = COALESCE(Environment.encodeRef, InputRoot.Properties.Encoding);
+		SET ccidRef = COALESCE(Environment.ccidRef, InputRoot.Properties.CodedCharSetId);
+		DECLARE application_name CHARACTER ApplicationLabel;
+		DECLARE flowName CHARACTER MessageFlowLabel;
+		DECLARE created_On TIMESTAMP CURRENT_TIMESTAMP;
+		IF EXISTS(InputRoot.XMLNSC[]) THEN
+			DECLARE domainDataRef REFERENCE TO InputRoot.XMLNSC;
+			DECLARE inref REFERENCE TO InputRoot.XMLNSC;
+			SET Environment.payload = CAST(ASBITSTREAM (domainDataRef)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		ELSE
+			DECLARE domainDataRef REFERENCE TO InputRoot.JSON.Data;
+			DECLARE inref REFERENCE TO InputRoot.JSON.Data;
+			SET Environment.payload = CAST(ASBITSTREAM (domainDataRef)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		END IF;
+		--SET Environment.id= inref.transactionId;
+		--SET Environment.id = InputRoot.HTTPInputHeader.Messageid;
+		--SET Environment.servicecode = InputRoot.HTTPInputHeader.Servicecode;
+		DECLARE excp REFERENCE TO InputExceptionList.*[1];
+		DECLARE excpType CHARACTER COALESCE(FIELDNAME(InputExceptionList.*),InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code");
+		DECLARE text,actualExcp,number,actualExcpText,messageText CHARACTER;
+		DECLARE excptext REFERENCE TO excp.Text;
+		DECLARE insertRef REFERENCE TO InputExceptionList.*[1];
+		--SET OutputRoot.XMLNSC.ERROR.ErrorType=excpType;
+
+		DECLARE i INTEGER 1;
+		WHILE LASTMOVE(excp) DO
+			MOVE excp LASTCHILD;
+			IF excp.Number is not null THEN
+				SET text=excp.Text;
+				DECLARE inserts REFERENCE TO excp.Insert;
+				DECLARE texts REFERENCE TO excp.Insert.texts;
+				MOVE insertRef TO excp.Insert[>];
+				WHILE LASTMOVE(insertRef) AND FIELDNAME(insertRef) = 'Insert' DO
+					SET actualExcpText = insertRef.Text;
+					IF Environment.dataa is NULL THEN
+						SET Environment.dataa = actualExcpText;
+					END IF;
+					MOVE insertRef NEXTSIBLING;
+					IF insertRef.Text <> '' THEN
+						SET actualExcp = actualExcpText || insertRef.Text;
+						SET excpType = text;
+						/*IF insertRef.UserException.Text = 'User generated exception' THEN
+						SET excptext = insertRef.UserException.Text;
+						ELSE
+						SET
+						END IF;*/
+					END IF;
+				END WHILE;
+
+				SET number = excp.Number;
+			END IF;
+		END WHILE;
+		SET messageText = text ||', ' ||Environment.dataa ||', '||actualExcp;
+		CREATE LASTCHILD OF Environment DOMAIN 'JSON';
+		CREATE LASTCHILD OF Environment.JSON NAME 'Data';
+		--CREATE FIELD Environment.JSON.Data;
+		DECLARE errOutRef REFERENCE TO Environment.JSON.Data;
+		SET Environment.excpType = excpType;
+		SET Environment.errorRes = Environment.dataa ||', '||actualExcp;
+		SET errOutRef.message = 'Failure';
+		--IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 500 THEN
+		--SET errOutRef.error.error_desc = 'Internal Server Error';
+		IF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" IN (409, 500, 400) THEN
+			SET errOutRef.statusCode = 'ESB-APPC-999';
+			--SET OutputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+			--DECLARE jsonBLOB BLOB CAST(InputRoot.BLOB.BLOB AS BLOB CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+			--SET OutputRoot.HTTPResponseHeader = InputRoot.HTTPResponseHeader;
+			CREATE LASTCHILD OF OutputRoot DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB);
+			--ELSEIF excpType = 'Parser Exception' THEN
+			--SET errOutRef.statusCode = InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+			--CREATE LASTCHILD OF OutputRoot DOMAIN('JSON') PARSE(InputRoot.BLOB.BLOB);
+			--SET errOutRef.error.error_desc = excpType;
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 404 THEN
+			SET errOutRef.statusCode = 'ESB-APPC-404';
+			SET errOutRef.error.error_desc = 'Resource Not Found';
+			SET errOutRef.error.messageId = Environment.id;
+			--SET errOutRef.error.ErrorType = excpType;
+			SET errOutRef.error.additionalData.esb_error_code = 404;
+			SET errOutRef.error.additionalData.esb_error_desc = 'Destination Application is not up and running'; --Environment.dataa ||', '||actualExcp;
+			SET Environment.errorRes = CAST(ASBITSTREAM (Environment.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+			SET OutputRoot.JSON.Data = Environment.JSON.Data;
+		ELSEIF InputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" = 403 THEN
+			SET errOutRef.statusCode = 'ESB-APPC-403';
+			SET errOutRef.error.error_desc = 'Forbidden';
+			SET errOutRef.error.messageId = Environment.id;
+			--SET errOutRef.error.ErrorType = excpType;
+			SET errOutRef.error.additionalData.esb_error_code = 403;
+			SET errOutRef.error.additionalData.esb_error_desc = 'ERROR: The request could not be satisfied'; --Environment.dataa ||', '||actualExcp;
+			SET Environment.errorRes = CAST(ASBITSTREAM (Environment.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+			SET OutputRoot.JSON.Data = Environment.JSON.Data;
+		ELSE
+			--SET OutputRoot.HTTPResponseHeader = InputRoot.HTTPResponseHeader;
+			--CREATE LASTCHILD OF OutputRoot DOMAIN('XMLNSC') PARSE(InputRoot.BLOB.BLOB);
+
+			SET errOutRef.statusCode = 'ESB-APPC-998';
+			IF excpType = 'RecoverableException' THEN
+				SET errOutRef.error.error_desc = 'Parser Exception';
+			ELSE
+				SET errOutRef.error.error_desc = COALESCE(excpType, 'Parser Exception');
+			END IF;
+			SET errOutRef.error.messageId = COALESCE(Environment.id, InputRoot.HTTPInputHeader.Messageid);
+			--SET OutputRoot.HTTPInputHeader.esberrorcode = number;
+			--SET errOutRef.error.ErrorType = excpType;
+			SET errOutRef.error.additionalData.esb_error_code = COALESCE(number, 5751);
+			SET errOutRef.error.additionalData.esb_error_desc = COALESCE(Environment.dataa ||', '||actualExcp, 'A validation error occurred when parsing a JSON message. Mandatory fields are missing');
+			SET Environment.errorRes = CAST(ASBITSTREAM (Environment.JSON.Data)AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+			SET OutputRoot.JSON.Data = Environment.JSON.Data;
+		END IF;
+
+		IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+			LOG EVENT values(Environment.id, created_On, Environment.payload, excpType, application_name,Environment.errorRes);
+		END IF;
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+			SET Environment.ErrorHandler.JSON.Data = OutputRoot.JSON.Data;
+			--DELETE FIELD OutputRoot.JSON;
+			--CALL ERROR_LOGGING_PROC(created_On, application_name, flowName, OutputRoot, Environment);
+			CALL insertAuditErrLog(Environment.id,created_On, Environment.payload,excpType,application_name,Environment.errorRes);
+
+		END IF;
+		--SET OutputRoot.JSON.Data = Environment.ErrorHandler.JSON.Data;	
+	END;
+END MODULE;
