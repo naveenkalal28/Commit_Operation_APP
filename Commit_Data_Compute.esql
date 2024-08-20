@@ -1,0 +1,119 @@
+DECLARE S NAMESPACE 'http://schemas.xmlsoap.org/soap/envelope/';
+DECLARE ns2 NAMESPACE 'http://temenos.com/ACLOCKEDEVENTS';
+DECLARE ns3 NAMESPACE 'http://temenos.com/SBGETACCTNET';
+DECLARE ns4 NAMESPACE 'http://temenos.com/EBACMCREDITCARD';
+DECLARE ns5 NAMESPACE 'http://temenos.com/SBGETCUSTOMER';
+DECLARE ns6 NAMESPACE 'http://temenos.com/FUNDSTRANSFERSBMPAYMENTAPI100';
+DECLARE ns7 NAMESPACE 'http://temenos.com/FUNDSTRANSFER';
+DECLARE ns8 NAMESPACE 'http://temenos.com/SBGETENETTXNDTX';
+DECLARE ns9 NAMESPACE 'http://temenos.com/CMS-SERVICES';
+CREATE COMPUTE MODULE Commit_Data_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+	
+	CALL CopyEntireMessage1();
+	
+		RETURN TRUE;
+	END;
+
+
+	CREATE PROCEDURE CopyEntireMessage1() BEGIN
+		DECLARE REF2 REFERENCE TO InputRoot.SOAP.*:Body.*:SBGenericTransferandPayments;
+		
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'XMLNSC';
+		--DECLARE inrefSoap1 REFERENCE TO InputRoot.Soap
+		SET OutputRoot.XMLNSC.S:Envelope.(XMLNSC.NamespaceDecl) xmlns:S = S;
+    	
+    	
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Header = NULL;  
+    	   
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns2 = ns2;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns3 = ns3;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns4 = ns4;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns5 = ns5;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns6 = ns6;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns7 = ns7;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns8 = ns8;
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.(XMLNSC.NamespaceDecl) xmlns:ns9 = ns9;
+    	
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.Status.transactionId = 'FT2320671641'; 
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.Status.messageId = 'TWS241171040058635.00';
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.Status.successIndicator = 'Success';
+    	SET OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.Status.application = 'FUNDS.TRANSFER'; 
+    	
+    	CREATE FIELD OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.FUNDSTRANSFERType;
+    	DECLARE Outref REFERENCE TO OutputRoot.XMLNSC.S:Envelope.S:Body.ns9:SBGenericTransferandPaymentsResponse.FUNDSTRANSFERType;
+    	
+    	SET Outref.(XMLNSC.Attribute)id = 'FT2320671641';
+    	SET Outref.ns7:TRANSACTIONTYPE=REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:DEBITTHEIRREF;
+    	SET Outref.ns7:DEBITACCTNO=REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:DEBITACCTNO;
+    	
+    	SET Outref.ns7:CURRENCYMKTDR = 1;
+    	SET Outref.ns7:DEBITCURRENCY = 'MZN';
+    	SET Outref.ns7:DEBITVALUEDATE = '2024-04-10';
+    	SET Outref.ns7:DEBITTHEIRREF = 'Advanced Payment';
+    	SET Outref.ns7:CREDITTHEIRREF = 'P';
+    	SET Outref.ns7:CREDITACCTNO = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:DEBITACCTNO;
+    	SET Outref.ns7:CURRENCYMKTCR = 1;
+    	SET Outref.ns7:CREDITCURRENCY = 'MZN';
+    	SET Outref.ns7:CREDITAMOUNT = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:CREDITAMOUNT;
+    	SET Outref.ns7:CREDITVALUEDATE = '2024-04-10';
+    	SET Outref.ns7:PROCESSINGDATE = CAST(CURRENT_DATE AS CHARACTER FORMAT 'yyyyMMdd');
+    	SET Outref.ns7:gORDERINGBANK.ns7:ORDERINGBANK = 'STANDARD BANK';
+    	SET Outref.ns7:gPAYMENTDETAILS.ns7:PAYMENTDETAILS = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:gPAYMENTDETAILS.*:PAYMENTDETAILS;
+    	SET Outref.ns7:CHARGESACCTNO = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:DEBITACCTNO;
+    	SET Outref.ns7:CHARGECOMDISPLAY = 'NO';
+    	SET Outref.ns7:COMMISSIONCODE = 'DEBIT PLUS CHARGES';
+    	SET Outref.ns7:CHARGECODE = 'DEBIT PLUS CHARGES';
+    	SET Outref.ns7:PROFITCENTREDEPT = '1900';
+    	SET Outref.ns7:RETURNTODEPT = 'NO';
+    	SET Outref.ns7:FEDFUNDS = 'NO';
+    	SET Outref.ns7:POSITIONTYPE = 'TR';
+    	SET Outref.ns7:AMOUNTDEBITED = 'MZN100.00';
+    	SET Outref.ns7:AMOUNTCREDITED = 'MZN100.00';
+    	SET Outref.ns7:CREDITCOMPCODE = 'MZ0010196';
+    	SET Outref.ns7:DEBITCOMPCODE = 'MZ0010101';
+    	SET Outref.ns7:LOCAMTDEBITED = '100.00';
+    	SET Outref.ns7:LOCAMTCREDITED = '100.00';
+    	SET Outref.ns7:CUSTGROUPLEVEL = '99';
+    	SET Outref.ns7:DEBITCUSTOMER = '12081';
+    	SET Outref.ns7:CREDITCUSTOMER = '90000';
+    	SET Outref.ns7:DRADVICEREQDYN = 'N';
+    	SET Outref.ns7:CRADVICEREQDYN = 'N';
+    	SET Outref.ns7:CHARGEDCUSTOMER = '12081';
+    	SET Outref.ns7:TOTRECCOMM = '0';
+    	SET Outref.ns7:TOTRECCOMMLCL = '0';
+    	SET Outref.ns7:TOTRECCHG = '0';
+    	SET Outref.ns7:TOTRECCHGLCL = '0';
+    	SET Outref.ns7:RATEFIXING = 'NO';
+    	SET Outref.ns7:TOTRECCHGCRCCY = '0';
+    	SET Outref.ns7:TOTSNDCHGCRCCY = '0.00';
+    	SET Outref.ns7:gSTMTNOS.ns7:STMTNOS = 'VAL';
+    	SET Outref.ns7:gOVERRIDE.ns7:OVERRIDE = 'ACCT.UNAUTH.OD}Unauthorised overdraft of & & on account &.{MZN}949331.76}1010127541007{MZN{949331.76{1010127541007{12081{982{{*U60';
+    	SET Outref.ns7:RECORDSTATUS = 'INAO';
+    	SET Outref.ns7:CURRNO = '1';
+    	SET Outref.ns7:gINPUTTER.ns7:INPUTTER = '10400_ENQUIRYUSER1__WS___OFS_TWS';
+    	SET Outref.ns7:gDATETIME.ns7:DATETIME = '2404261617';
+    	SET Outref.ns7:AUTHORISER = '10400_ENQUIRYUSER1';
+    	SET Outref.ns7:COCODE = 'MZ0010101';
+    	SET Outref.ns7:DEPTCODE = '1900';
+    	SET Outref.ns7:INPUTVERSION = 'FUNDS.TRANSFER,SBM.PAYMENT.API.1.0.0';
+    	SET Outref.ns7:DBACCTNAME = 'AURELIO ANTONIO NUNES ROCHA';
+    	SET Outref.ns7:CRACCTNAME = 'VISA SETTLEMENT AND CLEARANCE';
+    	SET Outref.ns7:SBCHANNEL = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:SBCHANNEL;
+    	SET Outref.ns7:NETTXNID = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:NETTXNID;
+    	SET Outref.ns7:REQUESTDATE =  REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:REQUESTDATE;
+    	SET Outref.ns7:NETUSERNAME = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:NETUSERNAME;
+    	SET Outref.ns7:SBUETRID = '3df4f0a8-0ba8-4d43-a7c1-e79080a72554';
+    	SET Outref.ns7:LSOURCETYPE = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:LSOURCETYPE;
+    	SET Outref.ns7:LBUSINESSIND = REF2.FUNDSTRANSFERSBMPAYMENTAPI100Type.*:LBUSINESSIND;
+    	
+    	
+    	
+
+
+
+	END;
+END MODULE;
+
+
