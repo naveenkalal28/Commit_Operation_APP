@@ -1,0 +1,77 @@
+Path DBloggingSharedLib;
+
+CREATE COMPUTE MODULE AppConnect_postCommitOperation_Compute1
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		--Declaring input properties
+		
+		Declare CCSID_Value2 REFERENCE TO InputRoot.Properties.CodedCharSetId;
+		Declare Encoding_Value2 REFERENCE TO InputRoot.Properties.Encoding;
+		
+		
+		DECLARE Payload1 REFERENCE TO InputRoot.*[3];
+    	DECLARE INDATA CHARACTER;
+		SET INDATA= CAST(ASBITSTREAM(Payload1) AS CHARACTER CCSID CCSID_Value2 ENCODING Encoding_Value2);
+		--DBLogging for T24_response
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+			CALL insertAuditLog(Environment.id,CURRENT_TIMESTAMP,INDATA,'HostRes',ApplicationLabel);
+		END IF;
+		-- Console logging T24_response
+		IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+				LOG EVENT values(Environment.id,CURRENT_TIMESTAMP,INDATA,'HostRes',ApplicationLabel);
+		END IF;
+		
+		
+		DECLARE ref REFERENCE TO InputRoot.XMLNSC.*:Envelope.*:Body.*:SBGenericTransferandPaymentsResponse;
+
+		IF ref.Status.successIndicator='Success' THEN
+			SET OutputRoot.JSON.Data.statusCode= 200;
+			SET OutputRoot.JSON.Data.message= 'Operation performed successfully';
+		ELSE
+			SET OutputRoot.JSON.Data.statusCode= 500;
+			SET OutputRoot.JSON.Data.message= 'Operation failed';
+		END IF;
+		
+				--creating outputJsonData
+		CREATE FIELD OutputRoot.JSON.Data.data;
+		DECLARE JsonOutRef1 REFERENCE TO OutputRoot.JSON.Data.data;
+			SET JsonOutRef1.transactionId= ref.Status.transactionId;
+			SET JsonOutRef1.clientTransactionId= ref.FUNDSTRANSFERType.*:NETTXNID;
+			SET JsonOutRef1.transactionType= ref.FUNDSTRANSFERType.*:TRANSACTIONTYPE;
+			SET JsonOutRef1.account= ref.FUNDSTRANSFERType.*:DEBITACCTNO;
+			SET JsonOutRef1.creditCardAccount= ref.FUNDSTRANSFERType.*:CREDITACCTNO;
+			SET JsonOutRef1.valueDate= ref.FUNDSTRANSFERType.*:REQUESTDATE;
+			SET JsonOutRef1.processedAt= ref.FUNDSTRANSFERType.*:PROCESSINGDATE;
+			SET JsonOutRef1.amount=ref.FUNDSTRANSFERType.*:CREDITAMOUNT;
+			SET JsonOutRef1.currency= 'USD';
+			SET JsonOutRef1.channel=  ref.FUNDSTRANSFERType.*:SBCHANNEL;
+			
+		--Properties 
+		SET OutputRoot.HTTPResponseHeader = InputRoot.HTTPInputHeader;
+		SET OutputRoot.HTTPResponseHeader.Messageid= Environment.id;
+		SET OutputRoot.HTTPResponseHeader.Servicecode =Environment.servicecode;
+		SET OutputRoot.HTTPResponseHeader.Channelname = Environment.channelname;
+		SET OutputRoot.HTTPResponseHeader.Dbloggingflag = Environment.Variables.Values.Dbloggingflag;
+		SET OutputRoot.HTTPResponseHeader.Consolelogflag =  Environment.Variables.Values.Consolelogflag;
+		
+			
+		--DBLogging Appconnect_response'
+		DECLARE OutDATA1 CHARACTER;
+		
+		SET OutDATA1 = CAST(ASBITSTREAM(OutputRoot.JSON.Data) AS CHARACTER CCSID CCSID_Value2 ENCODING Encoding_Value2);
+		--DBLogging for AppRes
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+		CALL insertAuditLog(Environment.id,CURRENT_TIMESTAMP,OutDATA1,'AppRes',ApplicationLabel);
+		END IF;
+		-- Console logging AppRes
+		IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+				LOG EVENT values(Environment.id,CURRENT_TIMESTAMP,OutDATA1,'AppRes',ApplicationLabel);
+		END IF;
+	END;
+END MODULE;

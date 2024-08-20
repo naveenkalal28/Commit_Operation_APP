@@ -1,0 +1,93 @@
+PATH DBloggingSharedLib;
+
+-- Declaring namespaces for Soap data
+DECLARE soapenv NAMESPACE 'http://schemas.xmlsoap.org/soap/envelope/';
+DECLARE cms NAMESPACE 'http://temenos.com/CMS-SERVICES';
+DECLARE fun NAMESPACE 'http://temenos.com/FUNDSTRANSFERSBMPAYMENTAPI100';
+
+CREATE COMPUTE MODULE AppConnect_postCommitOperation_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		CALL CopyEntireMessage1();
+		
+		RETURN TRUE;
+	END;
+		
+
+		CREATE PROCEDURE CopyEntireMessage1() BEGIN
+		--Declaring input properties
+		DECLARE Messageid CHARACTER InputRoot.HTTPInputHeader.Messageid;
+		SET Environment.id = Messageid;
+		SET Environment.servicecode = InputRoot.HTTPInputHeader.Servicecode;
+		SET Environment.channelname = InputRoot.HTTPInputHeader.Channelname;
+		SET Environment.Variables.Values.Dbloggingflag = InputRoot.HTTPInputHeader.Dbloggingflag;
+		SET Environment.Variables.Values.Consolelogflag = InputRoot.HTTPInputHeader.Consolelogflag;
+		
+		
+		Declare CCSID_Value1 REFERENCE TO InputRoot.Properties.CodedCharSetId;
+		Declare Encoding_Value1 REFERENCE TO InputRoot.Properties.Encoding;
+		
+		
+		Declare inref1 REFERENCE TO InputRoot.JSON.Data;
+		DECLARE INDATA CHARACTER;
+		SET INDATA = CAST(ASBITSTREAM(inref1) AS CHARACTER CCSID CCSID_Value1 ENCODING Encoding_Value1);
+		
+		--DB Logging AppReq
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+			CALL insertAuditLog(Environment.id,CURRENT_TIMESTAMP,INDATA,'AppReq',ApplicationLabel);
+		END IF;
+		-- Console logging AppReq
+		IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+				LOG EVENT values(Environment.id,CURRENT_TIMESTAMP,INDATA,'AppReq',ApplicationLabel);
+		END IF;
+		
+		--Creating Soap Data and tranforming Json to SOAP
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'XMLNSC';
+		SET OutputRoot.XMLNSC.soapenv:Envelope.(XMLNSC.NamespaceDecl) xmlns:soapenv = soapenv;
+    	SET OutputRoot.XMLNSC.soapenv:Envelope.(XMLNSC.NamespaceDecl) xmlns:cms = cms;
+    	SET OutputRoot.XMLNSC.soapenv:Envelope.(XMLNSC.NamespaceDecl) xmlns:fun = fun;
+    	SET OutputRoot.XMLNSC.soapenv:Envelope.soapenv:Header = NULL;  
+    	
+    	CREATE FIELD OutputRoot.XMLNSC.soapenv:Envelope.soapenv:Body.cms:SBGenericTransferandPayments;
+		DECLARE outref11 REFERENCE TO OutputRoot.XMLNSC.soapenv:Envelope.soapenv:Body.cms:SBGenericTransferandPayments;
+    	
+    	SET outref11.WebRequestCommon.company='MZ0010101';
+    	SET outref11.WebRequestCommon.password='123456';
+    	SET outref11.WebRequestCommon.userName='ENQUIRYUSER01';
+    	SET outref11.OfsFunction=NULL;
+    	
+    	CREATE FIELD OutputRoot.XMLNSC.soapenv:Envelope.soapenv:Body.cms:SBGenericTransferandPayments.FUNDSTRANSFERSBMPAYMENTAPI100Type;
+		DECLARE outref12 REFERENCE TO OutputRoot.XMLNSC.soapenv:Envelope.soapenv:Body.cms:SBGenericTransferandPayments.FUNDSTRANSFERSBMPAYMENTAPI100Type;
+		
+    	SET outref12.(XMLNSC.Attribute)id = '10';
+    	SET outref12.fun:OPERATION='VALIDATE';
+    	SET outref12.fun:DEBITACCTNO=inref1.account;
+    	SET outref12.fun:DEBITTHEIRREF=inref1.transactionType;
+    	SET outref12.fun:CREDITAMOUNT=inref1.amount;
+    	SET outref12.fun:gPAYMENTDETAILS.(XMLNSC.Attribute)id='1';
+    	SET outref12.fun:gPAYMENTDETAILS.fun:creditCardAccount=inref1.creditCardAccount;
+    	SET outref12.fun:SBCHANNEL=inref1.channel;
+    	SET outref12.fun:NETTXNID=inref1.clientTransactionId;
+    	SET outref12.fun:REQUESTDATE=inref1.valueDate;
+    	SET outref12.fun:NETUSERNAME=inref1.netUsername;
+    	SET outref12.fun:LSOURCETYPE='ACM';
+    	SET outref12.fun:LBUSINESSIND=inref1.transactionType;
+    	
+    	
+		DECLARE out_data CHARACTER;
+		SET out_data = CAST(ASBITSTREAM(OutputRoot.XMLNSC) AS CHARACTER CCSID CCSID_Value1 ENCODING Encoding_Value1);
+		--DBLogging for AppConnect_Request
+		IF Environment.Variables.Values.Dbloggingflag = 'Y' THEN
+			CALL insertAuditLog(Environment.id,CURRENT_TIMESTAMP,out_data,'HostReq',ApplicationLabel);
+		END IF;
+    	--ConsoleLogging for AppConnect_Request
+    	IF Environment.Variables.Values.Consolelogflag = 'Y' THEN
+			LOG EVENT values(Environment.id,CURRENT_TIMESTAMP,out_data, 'HostReq', ApplicationLabel);
+		END IF;
+		END;
+		
+		
+		
+
+END MODULE;

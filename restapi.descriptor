@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns2:restapiDescriptor xmlns="http://com.ibm.etools.mft.descriptor.base" xmlns:ns2="http://com.ibm.etools.mft.descriptor.restapi" definitionType="swagger_20" definitionFile="swagger.json" implementation="gen/StandardBank_AdvancePayments_CommitOperation.msgflow" https="false" definitionWithExtRef="false" faultFormat="JSON">
+    <references>
+        <sharedLibraryReference>
+            <libraryName>Exception_Handler</libraryName>
+        </sharedLibraryReference>
+        <sharedLibraryReference>
+            <libraryName>DBloggingSharedLib</libraryName>
+        </sharedLibraryReference>
+    </references>
+    <ns2:operations>
+        <ns2:operation name="AppConnect_postCommitOperation" implementation="AppConnect_postCommitOperation.subflow"/>
+    </ns2:operations>
+    <ns2:errorHandlers>
+        <ns2:errorHandler type="CATCH" implementation="StandardBank_AdvancePayments_CommitOperationInputCatchHandler.subflow"/>
+    </ns2:errorHandlers>
+</ns2:restapiDescriptor>

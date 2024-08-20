@@ -1,0 +1,32 @@
+path DBloggingSharedLib;
+
+CREATE COMPUTE MODULE AppConnect_postCommitOperation3_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		-- CALL CopyMessageHeaders();
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE ERROR CHARACTER;
+		DECLARE START REFERENCE TO InputExceptionList.*[1];
+		WHILE START.Number IS NOT NULL DO 
+			SET ERROR = START.Text;
+			
+			MOVE START LASTCHILD;
+		END WHILE;
+		
+		SET OutputRoot.JSON.Data.ExceptionData = ERROR;
+		
+		--DBErrorLogging
+    	DECLARE MSGID InTEGER 301;
+    	DECLARE INDATA CHARACTER;
+    	DECLARE Payload1 REFERENCE TO InputRoot.*[3];
+		SET INDATA= CAST(ASBITSTREAM(Payload1) AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId ENCODING InputRoot.Properties.Encoding);
+		
+		CALL insertAuditErrLog(MSGID,CURRENT_TIMESTAMP,INDATA,'Exception',ApplicationLabel,ERROR);
+		
+		
+	END;
+END MODULE;
