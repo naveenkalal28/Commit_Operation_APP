@@ -1,0 +1,49 @@
+BROKER SCHEMA com.sbm.eidiko
+PATH DBloggingSharedLib;
+--DECLARE RoutingDetails SHARED ROW;
+
+CREATE COMPUTE MODULE HTTPGatewayRes_Compute
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+
+		CALL CopyEntireMessage();
+		RETURN TRUE;
+	END;
+
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		DECLARE encodeRef, ccidRef INTEGER;
+		SET encodeRef = InputRoot.Properties.Encoding;
+		SET ccidRef = InputRoot.Properties.CodedCharSetId;
+		DECLARE application_name CHARACTER ApplicationLabel;
+		DECLARE created_On TIMESTAMP CURRENT_TIMESTAMP;
+		DECLARE headerRef REFERENCE TO InputRoot.HTTPResponseHeader;
+		DECLARE flowName CHARACTER MessageFlowLabel;
+		
+		DECLARE inref REFERENCE TO InputRoot.JSON.Data;
+		--DECLARE inref REFERENCE TO InputRoot.XMLNSC;
+		SET Environment.payload = CAST(ASBITSTREAM(inref) AS CHARACTER CCSID ccidRef ENCODING encodeRef);
+		SET Environment.id = headerRef.Messageid;
+		SET Environment.servicecode = headerRef.servicecode;
+		SET Environment.channelname = headerRef.ChannelName;
+		SET Environment.flowName = flowName;
+		SET Environment.logType = 'ChannelRes';
+		IF headerRef.Dbloggingflag = 'Y' THEN
+			CALL insertAuditLog(Environment.id,created_On,Environment.payload, Environment.logType,application_name);
+			/*SET OutputRoot.XMLNSC.DBLogging.id = Environment.id;
+			SET OutputRoot.XMLNSC.DBLogging.created_On = created_On;
+			SET OutputRoot.XMLNSC.DBLogging.chlreq = Environment.chlRes;
+			SET OutputRoot.XMLNSC.DBLogging.application_name = application_name;
+			SET OutputRoot.XMLNSC.DBLogging.payload = 'CHANNEL_RES';
+			PROPAGATE TO TERMINAL 'out1';*/
+			--CALL AUDIT_PROCEDURE(Environment.id, created_On, Environment.chlRes, 'CHANNEL_RES', application_name);
+		END IF;
+		--CALL writeToLogFile(MessageFlowLabel, logger_name, log_type,'CHANNEL_REQ data is: '||Environment.chlreq) INTO rc;
+		--LOG EVENT SEVERITY 1 CATALOG 'BIPMsgs' MESSAGE (MessageFlowLabel, logger_name, log_type,'CHANNEL_REQ data is:) v
+		--LOG EVENT SEVERITY 1 CATALOG 'BIPMsgs' MESSAGE 2951 VALUES (MessageFlowLabel, logger_name, 'INFO','CHANNEL_REQ data is: '||Environment.chlreq);
+		IF headerRef.Consolelogflag = 'Y' THEN
+			LOG EVENT VALUES('CHANNEL_RES: ', Environment.chlRes, application_name, MessageFlowLabel, Environment.id, created_On);
+		END IF;
+		SET OutputRoot.JSON.Data = InputRoot.JSON.Data;
+	END;
+END MODULE;
